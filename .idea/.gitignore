@@ -1,0 +1,9 @@
+@"
+# Ignore everything
+*
+
+# Allow only Python files and emails.json
+!*.py
+!emails.json
+!.gitignore
+"@ | Set-Content -Encoding utf8 .gitignore
