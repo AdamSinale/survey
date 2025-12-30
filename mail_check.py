@@ -1,20 +1,18 @@
-import os
 import time
 from entities.SurveyHandlerFactory import SurveyHandlerFactory
 from selenium.webdriver.common.by import By
 import json
 
 from driver_manager import DriverManager
+from email_handler import EmailHandler
 
 with open("emails.json", 'r', encoding='utf-8') as f:
     CHROME_PROFILES = json.load(f)
 
 SURVEY_SENDERS = ["PanelView","Panel4all","Midgam","סקרנט"]
 
-def open_gmail(email=""):
-    DriverManager.driver().get("https://mail.google.com/mail/u/0/#inbox")
-    DriverManager.wait().until(lambda d: "mail.google.com" in d.current_url or "accounts.google.com" in d.current_url)
-    url = DriverManager.driver().current_url
+def open_gmail(email = "", url = "https://mail.google.com/mail/u/0/#inbox"):
+    url = DriverManager.open_site(url)
     if "accounts.google.com" in url:
         try:
             email_input = DriverManager.click_element(By.ID, "identifierId")
@@ -42,27 +40,6 @@ def get_profile_info(email):
     profile = f"Profile {profile_num}"
     return profile
 
-# def delete_email(driver, idx):
-#     try:
-#         print("📥 חוזר לתיבת הדואר...")
-#         open_gmail(driver)
-#         time.sleep(2)
-#         emails_elements = get_users_emails(driver)
-#         email = emails_elements[idx]
-#         click_email_survey(email)
-#         more_button = driver.find_element(By.XPATH, "//div[@role='button' and @aria-label='More message options']")
-#         more_button.click()
-#         menu_items = driver.find_elements(By.XPATH, "//div[@role='menuitem' and not(@aria-hidden='true')]")
-#         for item in menu_items:
-#             text = item.text.strip().lower()
-#             if "delete this message" in text:
-#                 if item.is_displayed():
-#                     item.click()
-#                 return
-#         print("✅ נלחץ כפתור More message options בהצלחה")
-#     except Exception as e:
-#         print(f"❌ שגיאה במחיקת מייל: {e}")
-
 def go_back():
     DriverManager.driver().back()
     time.sleep(2)
@@ -70,25 +47,22 @@ def go_back():
 def find_survey_emails(email):
     try:
         open_gmail(email)
-        emails = DriverManager.all_elements(By.CLASS_NAME, "zA")
-        if not emails: return
+        email_cons = DriverManager.all_elements(By.CLASS_NAME, "zA")
+        if not email_cons: return
     except Exception as e:
         print(f"Error searching for survey emails: {e}")
         return
 
-    emails_to_delete = []
-    emails_to_fill = []
-
-    for email in emails:
+    for email_con in email_cons:
         try:
-            sender = DriverManager.find_parents_element(email, By.CLASS_NAME, "yX").text
+            sender = DriverManager.find_element(By.CLASS_NAME, "yX", email_con).text
             sender_keys = [key for key in SURVEY_SENDERS if key in sender]
             if not sender_keys:
-                emails_to_delete.append(email)
+                # emails_to_delete.append(email_con)
                 continue
-            email.click()
-            surveyHandler = SurveyHandlerFactory.get_survey(sender_keys[0])
-            link = surveyHandler.get_link()
+            email_con.click()
+            survey_handler = SurveyHandlerFactory.get_survey(sender_keys[0])
+            link = survey_handler.get_link()
 
             successfuly_filled = False
             if link:
@@ -96,13 +70,12 @@ def find_survey_emails(email):
                 if not href:
                     return
                 print(f"🔗 Survey link found: {href}")
-                time.sleep(1)
-                DriverManager.driver().get(href)
-                time.sleep(2)
-                successfuly_filled = surveyHandler.fill_survey()
+                DriverManager.open_site(href)
+                successfuly_filled = survey_handler.fill_survey()
 
             if not link or successfuly_filled:
-                emails_to_delete.append(email)
+                # emails_to_delete.append(email)
+                continue
         except Exception as e:
                 print(f"❌ Error processing email: {e}")
 
@@ -111,12 +84,11 @@ def process_account(email):
         print(f"\n🔁 Processing: {email}")
         profile = get_profile_info(email)
         DriverManager.init(profile)
-        try:
-            find_survey_emails(email)
-        finally:
-            DriverManager.close()
+        find_survey_emails(email)
     except Exception as e:
         print(f"❌ Error with {email}: {e}")
+    finally:
+        DriverManager.close()
 
 if __name__ == "__main__":
     for email in CHROME_PROFILES:

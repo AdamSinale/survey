@@ -63,7 +63,7 @@ class DriverManager:
             cls._profile = None
             raise RuntimeError("DevTools did not start")
 
-        cls._driver = cls._connect_selenium(port)
+        cls._driver = cls.connect_selenium(port)
         time.sleep(1)
 
         cls._profile = profile
@@ -76,30 +76,37 @@ class DriverManager:
         return cls._driver
 
     @classmethod
+    def open_site(cls, href: str):
+        cls._driver.get(href)
+        return cls.wait().until(lambda d: d.current_url)
+
+    @classmethod
     def _by_value(cls, by):
         return by.value if isinstance(by, By) else by
 
     @classmethod
-    def click_element(cls, by, value, timeout=30):
-        return WebDriverWait(cls._driver, timeout).until(EC.element_to_be_clickable((cls._by_value(by), value)))
+    def click_element(cls, by, value, timeout=10):
+        return cls.wait(timeout).until(EC.element_to_be_clickable((cls._by_value(by), value)))
 
     @classmethod
-    def all_elements(cls, by, value, timeout=30):
-        return WebDriverWait(cls._driver, timeout).until(EC.presence_of_all_elements_located((cls._by_value(by), value)))
+    def all_elements(cls, by, value, timeout=10):
+        return cls.wait(timeout).until(EC.presence_of_all_elements_located((cls._by_value(by), value)))
 
     @classmethod
-    def find_parents_element(cls, parent, by, value, timeout=30):
-        return WebDriverWait(cls._driver, timeout).until(lambda d: parent.find_element(cls._by_value(by), value))
+    def find_element(cls, by, value, parent = None, timeout=10):
+        parent = cls._driver if parent is None else parent
+        return cls.wait(timeout).until(lambda d: parent.find_element(cls._by_value(by), value))
 
     @classmethod
-    def find_drivers_element(cls, by, value, timeout=30):
-        return WebDriverWait(cls._driver, timeout).until(lambda d: cls._driver.find_element(cls._by_value(by), value))
+    def find_elements(cls, by, value, parent = None, timeout=10):
+        parent = cls._driver if parent is None else parent
+        return cls.wait(timeout).until(lambda d: parent.find_elements(cls._by_value(by), value))
 
     @classmethod
-    def wait(cls):
+    def wait(cls, timeout=10):
         if cls._driver is None:
             raise RuntimeError("Driver not initialized. Call DriverManager.init(profile)")
-        return WebDriverWait(cls._driver, 30)
+        return WebDriverWait(cls._driver, timeout)
 
     @classmethod
     def close(cls):
@@ -172,7 +179,7 @@ class DriverManager:
         return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @classmethod
-    def _connect_selenium(cls, port):
+    def connect_selenium(cls, port):
         os.environ["SE_USE_PATH"] = "0"
         opts = Options()
         opts.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
