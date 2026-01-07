@@ -1,9 +1,10 @@
 
 from entities.SurveyHandler import Survey
+from driver_manager import DriverManager
 
 class Panel4allSurvey(Survey):
-    def __init__(self):
-        super().__init__(link_texts=["למעבר לסקר", "לחצו כאן"])
+    def __init__(self, driver:DriverManager):
+        super().__init__(link_texts=["למעבר לסקר", "לחצו כאן"], driver=driver)
         self.question_container = "questionContainer"
         self.query_location = "question_text"
         self.continue_location = "nextButton"

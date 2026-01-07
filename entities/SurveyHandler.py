@@ -7,18 +7,20 @@ import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.common.exceptions import ElementClickInterceptedException
+from selenium.webdriver.remote.webelement import WebElement
 from datetime import date
 from selenium.webdriver.common.keys import Keys
-from driver_manager import DriverManager
-
 import yt_dlp
+
+from driver_manager import DriverManager
 
 load_dotenv(dotenv_path="api.env")  # או תשנה את שם הקובץ ל־.env ואז לא צריך פרמטר
 api_key = os.getenv("api")
 client = OpenAI(api_key=api_key)
 
 class Survey(ABC):
-    def __init__(self, link_texts):
+    def __init__(self, link_texts:list[str], driver:DriverManager):
+        self.driver = driver
         self.link_texts = link_texts
 
         self.question_container = ""
@@ -39,18 +41,19 @@ class Survey(ABC):
     def handle_exception(self):
         pass
 
-    def get_link(self):
+    def get_link(self) -> WebElement:
         for text in self.link_texts:
             try:
-                link = DriverManager.find_element(By.XPATH, f"//a[contains(text(),'{text}')]")
+                link = self.driver.find_element(By.XPATH, f"//a[contains(text(),'{text}')]")
                 return link
             except:
                 continue
         self.handle_exception()
-        return None
+        raise Exception("No link found ( Survey.get_link(self) )")
 
-    def fill_survey(self):
-        print("📝 ממלא סקר")
+    def fill_survey(self, href: str):
+        self.driver.open_site(href)
+        print(f"📝 Filling Survey on url - {href}")
         try:
             while True:
                 continueBtn = self.get_continue_btn()
@@ -94,16 +97,16 @@ class Survey(ABC):
     ############ page handlers ############
     def get_page_questions(self):
         try:
-            questions = DriverManager.find_element(By.CLASS_NAME, self.question_container)
+            questions = self.driver.find_element(By.CLASS_NAME, self.question_container)
             return questions
         except Exception:
             print(f"❌ שגיאה כללית בשליפת תשובות: ")
             return None
 
-    def get_question(self,container, query_location=""):
+    def get_question(self,container, query_location:str = ""):
         try:
-            outer = DriverManager.find_element(By.CLASS_NAME, query_location, container) if query_location else container
-            inner_elements = DriverManager.find_elements(By.XPATH, ".//*", outer)
+            outer = self.driver.find_element(By.CLASS_NAME, query_location, container) if query_location else container
+            inner_elements = self.driver.find_elements(By.XPATH, ".//*", outer)
             for elem in inner_elements:
                 text = elem.text.strip()
                 if text: return text
@@ -116,7 +119,7 @@ class Survey(ABC):
         for by in [By.NAME, By.CLASS_NAME]:
             for val in [self.continue_location, self.send_location]:
                 try:
-                    button = DriverManager.click_element(by, val)
+                    button = self.driver.click_element(by, val)
                     return button
                 except:
                     continue
@@ -126,15 +129,15 @@ class Survey(ABC):
     ############ matrix handlers ############
     def handle_radio_matrix(self):
         try:
-            rows = DriverManager.find_elements(By.CSS_SELECTOR, "tbody > tr",  self.pageQuestion)
-            # table_options_containers = DriverManager.find_elements(By.CLASS_NAME, self.table_options_containers, rows[0])
-            table_options_containers = DriverManager.find_elements(By.CSS_SELECTOR, "thead th", self.pageQuestion)[1:]
+            rows = self.driver.find_elements(By.CSS_SELECTOR, "tbody > tr",  self.pageQuestion)
+            # table_options_containers = self.driver.find_elements(By.CLASS_NAME, self.table_options_containers, rows[0])
+            table_options_containers = self.driver.find_elements(By.CSS_SELECTOR, "thead th", self.pageQuestion)[1:]
             options_text = [self.get_question(o) for o in table_options_containers]
             for i,row in enumerate(rows):
                 try:
                     row_question = self.get_question(row, self.table_question_title)
                     if not row_question: continue
-                    radio_inputs = DriverManager.find_elements(By.CSS_SELECTOR, 'input[type="radio"], ins', row)
+                    radio_inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="radio"], ins', row)
                     visible = []
                     for el in radio_inputs:
                         try:
@@ -161,8 +164,8 @@ class Survey(ABC):
 
     def handle_checkbox_matrix(self):
         try:
-            rows = DriverManager.find_elements(By.CSS_SELECTOR, "tbody > tr", self.pageQuestion)
-            headers = DriverManager.find_elements(By.CSS_SELECTOR, "thead th", self.pageQuestion)[1:]  # הכותרות של הטבלה (למעט העמודה הראשונה)
+            rows = self.driver.find_elements(By.CSS_SELECTOR, "tbody > tr", self.pageQuestion)
+            headers = self.driver.find_elements(By.CSS_SELECTOR, "thead th", self.pageQuestion)[1:]  # הכותרות של הטבלה (למעט העמודה הראשונה)
             option_texts = []
             for header in headers:
                 text = header.text.strip()
@@ -170,14 +173,14 @@ class Survey(ABC):
                     option_texts.append(text)
             for row in rows:
                 try:
-                    cells = DriverManager.find_elements(By.CSS_SELECTOR, "td", row)
+                    cells = self.driver.find_elements(By.CSS_SELECTOR, "td", row)
                     if not cells:
                         continue
                     question_text = cells[0].text.strip()
                     inputs = []
                     for i, cell in enumerate(cells[1:]):
                         try:
-                            checkbox = DriverManager.find_element(By.CSS_SELECTOR, 'input[type="checkbox"]', cell)
+                            checkbox = self.driver.find_element(By.CSS_SELECTOR, 'input[type="checkbox"]', cell)
                             inputs.append((option_texts[i], checkbox))
                         except:
                             continue
@@ -190,7 +193,7 @@ class Survey(ABC):
                             try:
                                 self.set_checked(inputs[answer_index][1])
                             except ElementClickInterceptedException:
-                                label = DriverManager.find_element(By.CSS_SELECTOR,f"label[for='{inputs[answer_index][1].get_attribute('id')}']", self.pageQuestion)
+                                label = self.driver.find_element(By.CSS_SELECTOR,f"label[for='{inputs[answer_index][1].get_attribute('id')}']", self.pageQuestion)
                                 self.set_checked(label)
                         else:
                             print(f"⚠️ לא נבחרה תשובה ל: {question_text}")
@@ -205,13 +208,13 @@ class Survey(ABC):
     ############ radio handlers ############
     def get_radio(self):
         try:
-            labels = DriverManager.find_elements(By.CLASS_NAME, self.radio_container, self.pageQuestion)
+            labels = self.driver.find_elements(By.CLASS_NAME, self.radio_container, self.pageQuestion)
             options = []
             for label in labels:
                 try:
-                    spans = DriverManager.find_elements(By.TAG_NAME, self.radio_value_location, label)
+                    spans = self.driver.find_elements(By.TAG_NAME, self.radio_value_location, label)
                     if not spans:
-                        spans = DriverManager.find_elements(By.CLASS_NAME, self.radio_value_location, label)
+                        spans = self.driver.find_elements(By.CLASS_NAME, self.radio_value_location, label)
                     text_span = next((span for span in spans if span.text.strip()), None)
                     if label and text_span:
                         answer_text = text_span.text.strip()
@@ -237,7 +240,7 @@ class Survey(ABC):
 
     def get_select(self):
         try:
-            select_elem = DriverManager.find_element(By.TAG_NAME, "select", self.pageQuestion)
+            select_elem = self.driver.find_element(By.TAG_NAME, "select", self.pageQuestion)
             select = Select(select_elem)
             options = [option.text.strip() for option in select.options if option.get_attribute("value") != "null"]
             return options, select
@@ -256,13 +259,13 @@ class Survey(ABC):
 
     def set_checked(self, element, checked=True):
         element.click()
-        try: DriverManager.driver().execute_script("arguments[0].checked = arguments[1];", element, checked)
+        try: self.driver.driver().execute_script("arguments[0].checked = arguments[1];", element, checked)
         except Exception: pass
 
     ############ text handlers ############
     def get_text_inputs(self):
         try:
-            inputs = DriverManager.find_elements(By.CSS_SELECTOR, 'input:not([type]), input[type="text"], textarea', self.pageQuestion)
+            inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input:not([type]), input[type="text"], textarea', self.pageQuestion)
             visible_inputs = []
             for inp in inputs:
                 input_type = (inp.get_attribute("type") or "").lower()
@@ -273,7 +276,7 @@ class Survey(ABC):
                 if not inp.is_displayed(): continue
                 visible_inputs.append(inp)
             if not visible_inputs:
-                inputs = DriverManager.find_elements(By.CSS_SELECTOR, 'input:not([type]), input[type="text"], textarea')
+                inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input:not([type]), input[type="text"], textarea')
                 for inp in inputs:
                     input_type = (inp.get_attribute("type") or "").lower()
                     style = (inp.get_attribute("style") or "").lower()
@@ -292,7 +295,7 @@ class Survey(ABC):
         if text_inputs:
             if not self.question_text:
                 for ti in text_inputs:
-                    question_con = DriverManager.find_element(By.XPATH, "..", ti)
+                    question_con = self.driver.find_element(By.XPATH, "..", ti)
                     self.question_text += self.get_question(question_con) + ", "
             responses = self.ask_chatgpt_for_texts(len(text_inputs))
             for input_elem, text in zip(text_inputs, responses):
@@ -357,7 +360,7 @@ f"""שמי אדם סין, רווק, בלי ילדים, נולדתי ב02/02/2004
 
     def get_video_info_from_page(self):
         try:
-            iframe = DriverManager.find_element(By.CSS_SELECTOR, "iframe")
+            iframe = self.driver.find_element(By.CSS_SELECTOR, "iframe")
             video_url = iframe.get_attribute("src")
             if "youtube" not in video_url:
                 raise Exception("No YouTube URL found in iframe")

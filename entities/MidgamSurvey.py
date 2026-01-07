@@ -1,9 +1,10 @@
 
 from entities.SurveyHandler import Survey
+from driver_manager import DriverManager
 
 class MidgamSurvey(Survey):
-    def __init__(self):
-        super().__init__(link_texts=["כניסה מותאמת"])
+    def __init__(self, driver:DriverManager):
+        super().__init__(link_texts=["כניסה מותאמת"], driver=driver)
         self.question_container = "w3-group"
         self.query_location = "w3-text-teal"
         self.continue_location = "continue"

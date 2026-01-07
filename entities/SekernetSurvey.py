@@ -2,10 +2,11 @@
 from selenium.webdriver.common.by import By
 import re
 from entities.SurveyHandler import Survey
+from driver_manager import DriverManager
 
 class SekernetSurvey(Survey):
-    def __init__(self):
-        super().__init__(link_texts=["סקרנט"])
+    def __init__(self, driver:DriverManager):
+        super().__init__(link_texts=["סקרנט"], driver=driver)
         self.question_container = "w3-group"
         self.query_location = "w3-text-teal"
         self.continue_location = "continue"
